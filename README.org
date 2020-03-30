@@ -1,4 +1,4 @@
-# Created 2020-03-30 Mon 07:13
+# Created 2020-03-30 Mon 19:32
 #+OPTIONS: toc:nil d:nil
 #+OPTIONS: toc:nil d:nil
 #+TITLE: Haskell CheatSheet
@@ -93,36 +93,6 @@ system.
 #+latex_header: \newunicodechar{∂}{\ensuremath{\partial}}
 #+latex_header: \newunicodechar{⊝}{\ensuremath{\ominus}}
 #+latex_header: \newunicodechar{₋}{\ensuremath{_-}}
-
-#+begin_quote
-- [[#hello-home][Hello, Home!]]
-- [[#pattern-matching][Pattern Matching]]
-- [[#local-bindings][Local Bindings]]
-- [[#operators][Operators]]
-- [[#types][Types]]
-- [[#tuples][Tuples]]
-- [[#lists][Lists]]
-  - [[#pattern-matching-on-lists][Pattern Matching on Lists]]
-  - [[#common-methods-on-lists][Common Methods on Lists]]
-- [[#list-design-patterns][List ‘Design Patterns’]]
-  - [[#map][Map]]
-  - [[#filter][Filter]]
-  - [[#fold][Fold]]
-- [[#algebraic-data-types][Algebraic data types]]
-- [[#typeclasses-and-overloading][*Typeclasses and overloading*]]
-- [[#functor][Functor]]
-  - [[#identity-axiom][Identity Axiom]]
-  - [[#fusion-axiom][Fusion Axiom]]
-  - [[#functors-do-not-necessarily-contain-anything][Functors do not necessarily ‘contain’ anything]]
-  - [[#misc-results-about-functors][Misc results about Functors]]
-- [[#applicative----protecting-against-invalid-input][Applicative ---Protecting against invalid input]]
-  - [[#axioms][Axioms]]
-  - [[#canonical-form----liftn][Canonical Form -- =liftN=]]
-  - [[#monoidal-presentation][Monoidal Presentation]]
-- [[#monad----the-programmable-semicolon][*Monad ---“the programmable semicolon”*]]
-- [[#comparing-monad-and-applicative][Comparing Monad and Applicative]]
-- [[#reads][Reads]]
-#+end_quote
 
 * Hello, Home!
 
@@ -651,50 +621,66 @@ This is a pairing operation with properties of ~(,)~ mirrored at the applicative
 {- Pure Pairing -} pure x <&> pure y = pure (x, y)
 {- Naturality   -} (f &&& g) <$> (u <&> v) = (f <$> u) <&> (g <&> v)
 
-{- Left Projection  -} fst <$> (pure () <&> v)  = v
-{- Right Projection -} snd <$> (u <&> pure ()) = u
+{- Left Projection  -} fst <$> (u <&> pure ()) = u
+{- Right Projection -} snd <$> (pure () <&> v)  = v
 {- Associtivity     -} assocl <$> (u <&> (v <&> w)) = (u <&> v) <&> w
 #+end_src
 The final three laws above suffice to prove the original applicative axioms, and so
 we may define ~p <*> q = uncurry ($) <$> (p <&> q)~.
 
-* Todo *Monad ---“the programmable semicolon”*
+* Do Notation
+Recall the ~map~ operation on lists, we could define it ourselves:
+#+begin_src haskell :tangle delme.hs
+map' :: (α -> β) -> [α] -> [β]
+map' f []     = []
+map' f (x:xs) = let y  = f x
+                    ys = map' f xs
+                in  (y:ys)
+#+end_src
+If instead the altering function ~f~ returned effectful results,
+then we could gather the results along with the effect:
+#+begin_src haskell :tangle delme1.hs
+{-# LANGUAGE ApplicativeDo #-}
 
-Coming soon ... See end of week of April 3rd, 2020 ...
-
-* Comparing Monad and Applicative
-
-[[http://www.staff.city.ac.uk/~ross/papers/Applicative.pdf][Intuitively]], the ~(>>=) :: m α → (α → m β) → m β~ of a monad ~m~ allows the value
-returned by one computation to influence the choice of another, whereas ~(<*>)~
-keeps the structure of a computation fixed, just sequencing the effects. For
-example, in ~wx >>= λ x → if x then wy else wz~ the value of ~wx~ will choose between
-the /computations/ ~wy~ and ~wz~, performing only one, whilst ~(λ x y z → if x then y
-else z) <$> wx <*> wy <*> wz~ performs the effects of all three computations,
-using the value of ~wx~ to choose only between the /values/ of ~wy~ and ~wz~. For
-example, if ~f α = m α = [α]~ and ~wx = [True], wz = []~ then the applicative
-expression is ~[]~ since the ‘else’ computation ‘fails’, whereas the monadic
-expression is ~wy~. [[http://www.staff.city.ac.uk/~ross/papers/Applicative.pdf][However]], whereas monads abort on the first ‘failure’, /with the
-applicative interface we can continue in the face of errors./
-#+begin_src haskell
-f :: Applicative f => f Bool -> f b -> f b -> f b
-f xs ys zs = (\x y z -> if x then y else z) <$> xs <*> ys <*> zs
-
-> f [True] [1..10] []
-[]
-
-m xs ys zs = xs >>= \x -> if x then ys else zs
-
-> m [True] [1..10] []
-[1,2,3,4,5,6,7,8,9,10]
+mapA :: Applicative f => (a -> f b) -> [a] -> f [b]
+mapA f []     = pure []
+mapA f (x:xs) = do y  <- f x
+                   ys <- mapA f xs
+                   pure (y:ys)
+                {- ≈ (:) <$> f x <*> mapA f xs -}
 #+end_src
 
-Hence, properties of applicatives ---such as length--- can be determined
-statically just by looking at the inputs, whereas monadic expressions can change
-the collection structure ---and its properties--- since they can look at
-intermediate results to decide what to do next.
+Applicative syntax can be a bit hard to write, whereas ~do~-notation is more
+natural and reminiscent of the imperative style used in defining ~map'~ above. For
+instance, the intuition that ~fs <*> ps~ is a cartesian product is clearer in
+do-notation: ~fs <*> ps ≈ do {f ← fs; x ← ps; pure (f x)}~ where the right side is
+read /“for-each f in fs, and each x in ps, compute f x”/.
 
-Applicatives sequence independent effects, whereas monads allow effects to
-depend on each other.
+[[https://dl.acm.org/doi/pdf/10.1145/3241625.2976007][In-general]], ~do {x₁ ← p₁; …; xₙ ← pₙ; pure e} ≈ pure (λ x₁ … xₙ → e) <*> p₁ <*> ⋯
+<*> pₙ~ *provided* ~pᵢ~ does not mention ~xⱼ~ for ~j < i~; but =e= may refer to all ~xᵢ~. If
+any ~pᵢ~ mentions an earlier ~xⱼ~, then we could not translate the ~do~-notation into
+an applicative expression.
+
+If ~do {x ← p; y ← qx; pure e}~ has ~qx~ being an expression *depending* on ~x~,
+then we could say this is an abbreviation for ~(λ x -> (λ y → e) <$> qx) <$> p~
+but this is of type ~f (f β))~. Hence, to allow later computations to depend
+on earlier computations, we need a method ~join :: f (f α) → α~ with which
+we define ~do {x ← p; y ← qx; pure e} ≈ join $ ~(λ x -> (λ y → e) <$> qx) <$> p~.
+
+Applicatives with a ~join~ are called monads and they give us a *“programmable
+semicolon”*. Since later items may depend on earlier ones, ~do {x ← p; y ← q;
+pure e}~ could be read /“let x be the value of computation p, let y be the value
+of computation q, then combine the values via expression e”/. Depending on how
+~<*>~ is implemented, such ‘let declarations’ could short-circuit (~Maybe~) or be
+nondeterministic (~List~) or have other effects such as altering state.
+
+As the ~do~-notation clearly shows, the primary difference between =Monad= and
+=Applicative= is that =Monad= allows dependencies on previous results, whereas
+=Applicative= does not.
+
+* Todo *-- Monad ---“the programmable semicolon”*
+
+Coming soon ... See end of week of April 3rd, 2020 ...
 
 * Reads
 
