@@ -30,8 +30,11 @@
 #+LATEX_HEADER: \newunicodechar{∂}{\ensuremath{\partial}}
 #+LATEX_HEADER: \newunicodechar{⊝}{\ensuremath{\ominus}}
 #+LATEX_HEADER: \newunicodechar{₋}{\ensuremath{_-}}
+#+LATEX_HEADER: \newunicodechar{⟶}{\ensuremath{\rightarrow}}
+#+LATEX_HEADER: \newunicodechar{∉}{\ensuremath{\not\in}}
+#+LATEX_HEADER: \newunicodechar{ }{\ensuremath{\;\;}}
 
-* COMMENT Contents :TOCish:QUOTE:ignore:
+* Contents :TOCish:QUOTE:ignore:
 #+BEGIN_QUOTE
 - [[#hello-home][Hello, Home!]]
 - [[#pattern-matching][Pattern Matching]]
@@ -53,12 +56,22 @@
   - [[#fusion-axiom][Fusion Axiom]]
   - [[#functors-do-not-necessarily-contain-anything][Functors do not necessarily ‘contain’ anything]]
   - [[#misc-results-about-functors][Misc results about Functors]]
-- [[#applicative----protecting-against-invalid-input][Applicative ---Protecting against invalid input]]
+- [[#functor-examples][Functor Examples]]
+- [[#applicative][Applicative]]
   - [[#axioms][Axioms]]
   - [[#canonical-form----liftn][Canonical Form -- =liftN=]]
   - [[#monoidal-presentation][Monoidal Presentation]]
-- [[#do-notation][Do Notation]]
-- [[#---monad----the-programmable-semicolon][*-- Monad ---“the programmable semicolon”*]]
+- [[#applicative-examples][Applicative Examples]]
+- [[#do-notation----subtle-difference-between-applicatives-and-monads][~Do~-Notation ---Subtle difference between applicatives and monads]]
+  - [[#do-notation-with-tuples-and-functions][Do-notation with tuples and functions]]
+- [[#formal-definition-of-do-notation][Formal Definition of ~Do~-Notation]]
+- [[#monad-laws][Monad Laws]]
+- [[#monad-examples][Monad Examples]]
+- [[#running-example----a-simple-arithmetic-language][Running Example ---A Simple Arithmetic Language]]
+- [[#maybe----possibly-failing-computations][Maybe ---Possibly Failing Computations]]
+- [[#writer----logging-information-as-we-compute][Writer ---Logging Information as we Compute]]
+- [[#reader----accessing-global-read-only-data][Reader ---Accessing ‘Global, read-only, data’]]
+- [[#state----read-and-write-to-local-storage][State ---Read and write to local storage]]
 - [[#reads][Reads]]
 #+END_QUOTE
 
@@ -172,8 +185,8 @@ accept your claim or reject it loudly.
 
 * Tuples
 
-*Tuples* ~(α₁, …, αₙ)~ are types with values written ~(x₁, …, xₙ)~ where each ~xᵢ ::
-αᵢ~. The are a form of ‘record’ or ‘product’ type.
+*Tuples* ~(α₁, …, αₙ)~ are types with values written ~(x₁, …, xₙ)~ {{{newline}}} where
+each ~xᵢ :: αᵢ~. The are a form of ‘record’ or ‘product’ type.
 
 E.g., ~(True, 3, 'a') :: (Boolean, Int, Char)~.
 
@@ -208,6 +221,9 @@ second g (x, y) = (x, g y)
 *Lists* are sequences of items of the same type.
 {{{newline}}}
 If each ~xᵢ ∷ α~ then ~[x₁, …, xₙ] ∷ [α]~.
+
+Lists are useful for functions that want to ‘non-deterministicly’ return a
+value: {{{newline}}} They return a list of all possible values.
 
    - The /empty list/ is ~[]~
    - We “cons”truct nonempty lists using ~(:) ∷ α → [α] → [α]~
@@ -291,13 +307,16 @@ structural similarity of the individual functions.
      - ~xs = takeWhile p xs ++ dropWhile p xs~.
 
 ** Fold
- ~foldr (⊕) e ≈ λ (x₀ ∶ (x₁ ∶ (… ∶ (xₙ : [])))) → (x₀ ⊕ (x₁ ⊕ (… ⊕ (xₙ ⊕ e))))~
+Right-folds let us ‘sum’ up the elements of the list, associating to the right.
+#+BEGIN_SRC haskell
+foldr (⊕) e ≈ λ (x₀ : (x₁ : (… : (xₙ : []))))
+              → (x₀ ⊕ (x₁ ⊕ (… ⊕ (xₙ ⊕ e))))
+#+END_SRC
 
-- ‘Sum’ up the elements of the list, associating to the right.
+This function just replaces cons ~“∶”~ and ~[]~ with ~⊕~ and ~e~. That's all.
+  * E.g., replacing ~:,[]~ with themselves does nothing: ~foldr (:) [] = id~.
 
-- This function just replaces cons ~“∶”~ and ~[]~ with ~⊕~ and ~e~. That's all.
-       * E.g., replacing ~:,[]~ with themselves does nothing: ~foldr (:) [] = id~.
-
+#+latex: \newpage
 /All functions on lists can be written as folds!/
 #+BEGIN_SRC haskell
    h [] = e  ∧  h (x:xs) = x ⊕ h xs
@@ -310,7 +329,7 @@ structural similarity of the individual functions.
   - ~takeWhile p = foldr (λ x ys → if (p x) then (x:ys) else []) []~
   # - E.g., ~dropWhile p = foldr (λ x ys → if (p x) then ys else (x:ys)) []~.
 # #
-You can also fold leftward, i.e., by associsting to the left:
+You can also fold leftward, i.e., by associating to the left:
 #+BEGIN_SRC haskell
 foldl (⊕) e   ≈   λ       (x₀ : (x₁ : (… :  (xₙ : []))))
                   → (((e ⊕ x₀) ⊕ x₁) ⊕ … ) ⊕ xₙ
@@ -320,12 +339,13 @@ Unless the operation ~⊕~ is associative, the folds are generally different.
 + E.g., ~-55 = foldl (-) 0 [1..10] ≠ foldr (-) 0 [1..10] = -5~.
 
 If ~h~ swaps arguments ---~h(x ⊕ y) = h y ⊕ h x~--- then ~h~ swaps folds:
+{{{newline}}}
  ~h . foldr (⊕) e = foldl (⊝) e′~ where ~e′ = h e~ and ~x ⊝ y = x ⊕ h y~.
 
 E.g., ~foldl (-) 0 xs = - (foldr (+) 0 xs) = - (sum xs)~
-and ~n ! = foldr (*) 1 [1..n] = 1 / foldl (/) 1 [1..n]~.
+{{{newline}}} and ~n ! = foldr (*) 1 [1..n] = 1 / foldl (/) 1 [1..n]~.
 
-( Floating points are a leaky abstraction! )
+| /( Floating points are a leaky abstraction! )/ |
 
 * Algebraic data types
 
@@ -369,6 +389,22 @@ defined by ~data List α = Nil | Cons α (List α)~ and, for example, ~Cons 1 (C
 Nil)~ is a value of ~List Int~, whereas ~Cons 'a' Nil~ is of type ~List Char~. ---The
 ~List~ type is missing the ~“deriving Show”~, see below for how to /mixin/ such a
 feature.
+
+For example, suppose we want to distinguish whether we have an α-value or a
+β-value, we use ~Either~. Let's then define an example /infix/ function using
+pattern matching.
+#+BEGIN_SRC haskell
+data Either α β = Left α | Right β
+
+(+++) :: (α → α′) → (β → β′) → Either α β → Either α′ β′
+(f +++ g) (Left  x) = Left $ f x
+(f +++ g) (Right x) = Right $ g x
+
+right :: (β → τ) → Either α β → Either α τ
+right f = id +++ f
+#+END_SRC
+The above ~(+++)~ can be found in ~Control.Arrow~ and is also known as ~either~ in the
+standard library.
 
 * *Typeclasses and overloading*
 
@@ -419,15 +455,21 @@ types are necessarily also types with equality. One says ~Ord~ is a /subclass/ o
 ~Eq~; and since subclasses /inherit/ all functions of a class, we may always replace
 ~(Eq a, Ord a) => ⋯~ by ~Ord a => ⋯~.
 
-
-You can of-course define your own typeclasses; e.g., the ~Num~ class in Haskell
+You can of-course define your own typeclasses; e.g., the ~Monoid~ class in Haskell
 could be defined as follows.
 #+BEGIN_SRC haskell
-class Num a where
-  (+), (-), (*)       :: a -> a -> a
-  negate, abs, signum :: a -> a
-  fromInteger         :: Integer -> a
+class Semigroup a where
+  (<>) :: a -> a -> a  {- A way to “compose” elements together -}
+  {- Axiom: (x <> y) <> z = x <> (y <> z) -}
+
+class Semigroup a => Monoid a where
+  mempty :: a   {- Axiom: This is a ‘no-op’, identity, for composition <> -}
 #+END_SRC
+Example monoids ~(α, <>, mempty)~ include ~(Int, +, 0)~, ~([α], ++, [])~, and
+{{{newline}}} (Program statements, sequence “;”, the empty statement) ---this
+last example is approximated as ~Term~ with ‘let-in’ clauses at the end of this
+cheatsheet. /Typeclasses are interfaces, possibly with axioms specifying their
+behaviour./
 
 As shown earlier, Haskell provides a the ~deriving~ mechanism for making it easier
 to define instances of typeclasses, such as ~Show, Read, Eq, Ord, Enum~. How?
@@ -489,8 +531,9 @@ instance Functor Pocket where
 
 ** Functors do not necessarily ‘contain’ anything
 
-It is important to note that functors model well-behaved container-like types, but of-course
-the types do not actually need to contain anything at all! E.g., the following is a valid functor.
+It is important to note that functors model well-behaved container-like types,
+but of-course the types do not actually need to contain anything at all! E.g.,
+the following is a valid functor.
 #+BEGIN_SRC haskell :tangle Liar.hs
 {- “I totally have an α-value, it's either here or there.” Lies! -}
 data Liar α = OverHere Int | OverThere Int
@@ -503,8 +546,14 @@ Notice that if we altered ~n~, say by dividing it by two, then we break the
 identity law; and if we swap the constructors, then we break the fusion law.
 Super neat stuff!
 
+In general, functors take something boring and generally furnish it with
+‘coherent’ structure, but *there is not necessarily an α ‘inside’ f α*.
+E.g., ~f α = (ε → α)~ has as values “recipes for forming an α-value”,
+but unless executed, there is no ~α~-value.
+
 ** Misc results about Functors
 
+#+latex: \vspace{0.5em}
 + ~fmap f xs~ ≈ /for each/ element ~x~ in the ‘collection’ ~xs~, yield ~f x~.
 + Haskell can usually ~derive~ functor instances since they are [[http://archive.fo/U8xIY][unique]]: Only one
   possible definition of ~fmap~ will work.
@@ -524,13 +573,45 @@ foo g = foo (g . id) = fmap g . foo id = fmap g . id = fmap g
   :End:
 + Reading the functor axioms left-to-right, they can be seen as /optimisation laws/
   that make a program faster by reducing work.
-+ The two laws together give us: ~fmap (f₁ . f₂ . ⋯ . fₙ) = fmap f₁ . ⋯ . fmap fₙ~
-  for ~n ≥ 0~.
++ The two laws together say /fmap distributes over composition/: {{{newline}}}
+  ~fmap (f₁ . f₂ . ⋯ . fₙ) = fmap f₁ . ⋯ . fmap fₙ~ for ~n ≥ 0~.
 
 *Naturality Theorems:* If ~p ∷ f a → g a~ for some /functors/ ~f~ and ~g~, {{{newline}}}
 then ~fmap f . p = p . fmap f~ for any /function/ ~f~.
 
-* Applicative ---Protecting against invalid input
+Hence, any generic property ~p ∷ f α → ε~ is invariant over fmaps:
+~p(fmap f xs) = p xs~. E.g., the length of a list does not change even when an
+fmap is applied.
+# - This is the naturality theorem for ~p~ where ~g a = ε~ is the constantly-~ε~ functor.
+
+* Functor Examples
+
+Let ~f₁, f₂~ be functors and ~ε~ be a given type.
+
+| Type Former | ~f α~                  | ~f <$> x~                             |
+|-------------+----------------------+-------------------------------------|
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]    | ~α~                    | ~f <$> x =  x~                        |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]    | ~ε~                    | ~f <$> x = x~                         |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/GHC-List.html][List]]        | ~[α]~                  | ~f <$> [x₀, …, xₙ] = [f x₀, …, f xₙ]~ |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Either.html#t:Either][Either]]      | ~Either ε α~           | ~f <$> x = right f~                   |
+|-------------+----------------------+-------------------------------------|
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Product.html#t:Product][Product]]     | ~(f₁ α, f₂ α)~         | ~f <$> (x, y) = (f <$> x, f <$> y)~   |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Compose.html#t:Compose][Composition]] | ~f₁ (f₂ α)~            | ~f <$> x = (fmap f) <$> x~            |
+| [[http://comonad.com/reader/2012/abstracting-with-applicatives/][Sum]]         | ~Either (f₁ α) (f₂ α)~ | ~f <$> ea = f +++ f~                    |
+|-------------+----------------------+-------------------------------------|
+| [[http://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Writer-Lazy.html#g:2][Writer]]      | ~(ε, α)~               | ~f <$> (e, x) = (e, f x)~             |
+| [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Reader.html][Reader]]      | ~ε → α~                | ~f <$> g = f . g~                     |
+| [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-State-Lazy.html#g:2][State]]       | ~ε → (ε, α)~           | ~f <$> g = second f . g~              |
+
+Notice that writer is the product of the constant and the identity functors.
+
+Unlike reader, the type former ~f α = α → ε~ is /not/ a functor since there is no
+way to implement ~fmap~. In contrast, ~f α = (α → ε, α)~ /does/ have an implementation
+of ~fmap~, but it is not lawful.
+# It fails the identity axiom.
+
+* Applicative
+  # ---Protecting against invalid input
 
 /Applicatives are collection-like types that can apply collections of functions
 to collections of elements./
@@ -545,13 +626,16 @@ the former to the latter. The answer is ~(+) <$> Just 2 <*> Just 3~.
 class Functor f => Applicative f where
   pure   :: a -> f a
   (<*>)  :: f (a -> b) -> f a -> f b  {- “apply” -}
-  liftA2 :: (a -> b -> c) -> f a -> f b -> f c
-  {-# MINIMAL pure, ((<*>) | liftA2) #-}
 
 {- Apply associates to the left: p <*> q <*> r = (p <*> q) <*> r) -}
 #+END_SRC
 
 The method ~pure~ lets us inject values, to make ‘singleton collections’.
+
+# Main idea
++ /Functors transform values inside collections; applicatives can additionally
+  combine values inside collections./
++ Exercise: If ~α~ is a monoid, then so too is ~f α~ for any applicative ~f~.
 
 ** Axioms
 The applicative axioms ensure that apply behaves like usual functional application:
@@ -591,15 +675,28 @@ by unfolding the identity axiom.
 Using these laws, we regain ~fmap~ thereby further cementing that applicatives
 model “collections that can be functionally applied”: ~f <$> x = pure f <*> x~.
 ( Hence, every applicative is a functor whether we like it or not. )
+- The homomorphism law now becomes: ~pure . f = fmap f . pure~.
+  # i.e., ~λ x → pure (f x) = λ x → fmap f (pure x)~.
+  * This is the “naturality law” for ~pure~.
+:Proof:
+fmap f (pure x)
+= f <$> pure x
+= pure f <*> pure x
+= pure (f x)
+:End:
 
-** Todo Canonical Form -- =liftN=
+** Canonical Form -- =liftN=
 
-Any expression built from the applicative methods can be transformed to the
-canonical form of “a pure function applied to effectful arguments”: ~pure f <*>
-x₁ <*> ⋯ <*> xₙ~ ---[[http://www.staff.city.ac.uk/~ross/papers/Applicative.pdf][The laws]], as left-to-right rewrite rules, are the algorithm.
-Notice that the canonical form generalises ~fmap~ to ~n~-arguments: Given ~f ∷ α₁ → ⋯
-→ αₙ → β~ and ~xᵢ ∷ f αᵢ~, we obtain an ~(f β)~-value. The case of ~n = 2~ is called
-~liftA2~, and ~n = 1~ is just ~fmap~.
+[[http://www.staff.city.ac.uk/~ross/papers/Applicative.pdf][The laws]] may be interpreted as left-to-right rewrite rules and so are a
+ procedure for transforming any applicative expression into the canonical form
+ of “a pure function applied to effectful arguments”: ~pure f <*> x₁ <*> ⋯ <*>
+ xₙ~. In this way, one can compute in-parallel the, necessarily independent, ~xᵢ~
+ then combine them together.
+
+Notice that the canonical form generalises ~fmap~ to ~n~-arguments: {{{newline}}}
+Given ~f ∷ α₁ → ⋯ → αₙ → β~ and ~xᵢ ∷ f αᵢ~, we obtain an ~(f β)~-value. {{{newline}}}
+The case of ~n = 2~ is called ~liftA2~, ~n = 1~ is just ~fmap~, and for ~n = 0~ we have
+~pure~!
 
 :More:
 The ~ApplicativeDo~ extension permits a different
@@ -644,7 +741,64 @@ The final three laws above suffice to prove the original applicative axioms, and
 we may define ~p <*> q = uncurry ($) <$> (p <&> q)~.
 # Naturality, in the context of Haskell, is a free theorem.
 
-* Do Notation
+* Applicative Examples
+
+Let ~f₁, f₂~ be functors and let ~ε~ a type.
+
+| Functor     | ~f α~                  | ~f <*> x~                                 |
+|-------------+----------------------+-----------------------------------------|
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]    | ~α~                    | ~f <*> x = f x~                           |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]    | ~ε~                    | ~e <*> d = e <> d~                        |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/GHC-List.html][List]]        | ~[α]~                  | =fs <*> xs = [f x ∣ f <- fs, x <- xs]=    |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Either.html#t:Either][Either]]      | ~Either ε α~           | ~ef <*> ea = right (λ f → right f ea) ef~ |
+|-------------+----------------------+-----------------------------------------|
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Compose.html#t:Compose][Composition]] | ~f₁ (f₂ α)~            | ~f <*> x = (<*>) <$> f <*> x~             |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Product.html#t:Product][Product]]     | ~(f₁ α, f₂ α)~         | ~(f, g) <*> (x, y) = (f <*> x, g <*> y)~  |
+| [[http://comonad.com/reader/2012/abstracting-with-applicatives/][Sum]]         | ~Either (f₁ α) (f₂ α)~ | Challenge: Assume ~η ∷ f₁ a → f₂ a~       |
+|-------------+----------------------+-----------------------------------------|
+| [[http://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Writer-Lazy.html#g:2][Writer]]      | ~(ε, α)~               | ~(a , f) <*> (b, x) = (a <> b, f x)~      |
+| [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Reader.html][Reader]]      | ~ε → α~                | ~f <*> g = λ e → f e (g e)~  ---c.f., ~SKI~ |
+| [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-State-Lazy.html#g:2][State]]       | ~ε → (ε, α)~           | ~sf <*> sa = λ e → let (e′, f) = sf e~    |
+|             |                      |                    ~in second f (sa e′)~  |
+
+In the writer and constant cases, we need ~ε~ to also be a monoid.
+When ε is /not/ a monoid, then those two constructions give examples of functors
+that are /not/ applicatives ---since there is no way to define ~pure~.
+In contrast, ~f α = (α → ε) → Maybe ε~ is not an applicative since no
+definition of apply is lawful.
+
+Since readers ~((->) r)~ are applicatives, we may, for example, write ~(⊕) <$> f
+<*> g~ as a terse alternative to the “pointwise ⊕” method ~λ x → f x ⊕ g x~. E.g.,
+using ~(&&)~ gives a simple way to chain predicates.
+:Indeed:
+#+BEGIN_SRC haskell
+  (⊕) <$> f <*> g
+=  (pure (⊕) <*> f) <*> g
+=  λ x → (pure (⊕) <*> f) x (g x)
+=  λ x → pure (⊕) x (f x) (g x)
+=  λ x → (⊕) (f x) (g x)
+= λ x → f x ⊕ g x
+#+END_SRC
+
+:End:
+
+:Table_with_pure:
+| Functor     | ~f α~                  | ~pure a~           | ~f <*> x~                                |
+|-------------+----------------------+------------------+----------------------------------------|
+| Identity    | ~α~                    | ~a~                | ~f x~                                    |
+| Constant    | ~ε~                    | ~mempty~           | ~f <> x~                                 |
+| List        | ~[α]~                  | ~[a]~              | =fs <*> xs = [f x ∣ f <- fs, x <- xs]=   |
+| Either      | ~Either ε α~           | ~Right a~      | ~right (λ f → right f ea) ef~            |
+|-------------+----------------------+------------------+----------------------------------------|
+| Composition | ~f₁ (f₂ α)~            | ~pure (pure a)~    | ~f <*> x = (<*>) <$> f <*> x~            |
+| Product     | ~(f₁ α, f₂ α)~         | ~(pure a, pure a)~ | ~(f, g) <*> (x, y) = (f <*> x, g <*> y)~ |
+| Sum         | ~Either (f₁ α) (f₂ α)~ |                  | ~f <$> ea = f +++ f~                       |
+|-------------+----------------------+------------------+----------------------------------------|
+| Writer      | ~(ε, α)~               | ~(mempty, a)~      | ~(a , f) <*> (b, x) = (a <> b, f x)~     |
+| Reader      | ~ε → α~                | ~λ _ → a~          | ~f <*> g = λ x → f x (g x)~  --i.e., ~S~   |
+:End:
+
+* ~Do~-Notation ---Subtle difference between applicatives and monads
   Recall the ~map~ operation on lists, we could define it ourselves:
 #+BEGIN_SRC haskell :tangle delme.hs
 map' :: (α -> β) -> [α] -> [β]
@@ -672,6 +826,7 @@ instance, the intuition that ~fs <*> ps~ is a cartesian product is clearer in
 do-notation: ~fs <*> ps ≈ do {f ← fs; x ← ps; pure (f x)}~ where the right side is
 read /“for-each f in fs, and each x in ps, compute f x”/.
 
+#+latex: \columnbreak
 # “Desugaring Haskell’s do-Notation into Applicative Operations”
 [[https://dl.acm.org/doi/pdf/10.1145/3241625.2976007][In-general]], ~do {x₁ ← p₁; …; xₙ ← pₙ; pure e} ≈ pure (λ x₁ … xₙ → e) <*> p₁ <*> ⋯
 <*> pₙ~ *provided* ~pᵢ~ does not mention ~xⱼ~ for ~j < i~; but =e= may refer to all ~xᵢ~. If
@@ -679,10 +834,10 @@ any ~pᵢ~ mentions an earlier ~xⱼ~, then we could not translate the ~do~-nota
 an applicative expression.
 
 If ~do {x ← p; y ← qx; pure e}~ has ~qx~ being an expression *depending* on ~x~,
-then we could say this is an abbreviation for ~(λ x -> (λ y → e) <$> qx) <$> p~
+then we could say this is an abbreviation for ~(λ x → (λ y → e) <$> qx) <$> p~
 but this is of type ~f (f β))~. Hence, to allow later computations to depend
 on earlier computations, we need a method ~join :: f (f α) → α~ with which
-we define ~do {x ← p; y ← qx; pure e} ≈ join $ ~(λ x -> (λ y → e) <$> qx) <$> p~.
+we define {{{newline}}} ~do {x ← p; y ← qx; pure e} ≈ join $ ~(λ x -> (λ y → e) <$> qx) <$> p~.
 
 Applicatives with a ~join~ are called monads and they give us a *“programmable
 semicolon”*. Since later items may depend on earlier ones, ~do {x ← p; y ← q;
@@ -714,9 +869,254 @@ this = (\ x₁ -> e x₁ <$> p₂ x₁) <$> p₁
 #+END_SRC
 :End:
 
-* Todo *-- Monad ---“the programmable semicolon”*
+** Do-notation with tuples and functions
 
-Coming soon ... See end of week of April 3rd, 2020 ...
+Do-syntax also works with tuples and functions --c.f., reader monad below---
+since they are monadic; e.g., every clause ~x <- f~ in a functional do-expression
+denotes the resulting of applying ~f~ to the (implicit) input.
+More concretely:
+#+BEGIN_SRC haskell
+go :: (Show a, Num a) => a -> (a, String)
+go = do {x <- (1+); y <- show; return (x, y)}
+
+-- go 3 = (4, "3")
+#+END_SRC
+
+Likewise, tuples, lists, etc.
+
+* Formal Definition of ~Do~-Notation
+
+For a general applicative ~f~, a ~do~ expression has the form ~do {C; r}~, where ~C~ is
+a (possibly empty) list of commands separated by semicolons, and ~r~ is an
+expression of type ~f β~, which is also the type of the entire ~do~ expression. Each
+command takes the form ~x ← p~, where ~x~ is a variable, or possibly a pattern; if ~p
+:: f α~ then ~x :: α~. In the particular case of the anonymous variable, ~_ ← p~ may
+be abbreviated to ~p~.
+
+The translation of a ~do~ expression into ~<*>/join~ operations and ~where~ clauses is
+governed by three rules ---the last one only applies in the setting of a monad.
+#+BEGIN_SRC haskell
+(1)  do {r}           = r
+(2A) do {x ← p; C; r} = q <*> p where q x = do {C; r} --Provided x ∉ C
+(2M) do {x ← p; C; r} = join $ map q p where q x = do {C; r}
+
+{- Fact: When x ∉ C, (2A) = (2M). -}
+#+END_SRC
+
+By definition chasing and induction on the number of commands ~C~, we have:
+#+BEGIN_SRC haskell
+[CollapseLaw]  do {C; do {D; r}} = do {C; D; r}
+#+END_SRC
+:Proof:
+#+BEGIN_SRC haskell
+{- Proof:
+   [base] do {do {D; r}} = do {D; r} ✓
+   [ind]  do {x ← p; C′; do {D; r}}  -- case: x ∉ C
+        = q <*> p where q x = do {C′; do {D; r}}
+        = q <*> p where q x = do {C′; D; r}
+        = do {x ← p; C′; D; r} ✓
+   [ind]  do {x ← p; C′; do {D; r}}  -- case: x may be in C
+        = join $ map q p where q x = do {C′; do {D; r}}
+        = join $ map q p where q x = do {C′; D; r}
+        = do {x ← p; C′; D; r} ✓
+-}
+#+END_SRC
+:End:
+
+Likewise:
+#+BEGIN_SRC haskell
+[Map ] fmap f p = do {x ← p; pure (f x)} -- By applicative laws
+[Join] join ps  = do {p ← ps; p}         -- By functor laws
+#+END_SRC
+
+*Do-Notation Laws*: Here are some desirable usability properties of ~do~-notation.
+#+BEGIN_SRC haskell
+[RightIdentity]  do {B; x ← p; pure x}       = do {B; p}
+[LeftIdentity ]  do {B; x ← pure e; C; r}    = do {B; C[x ≔ e]; r[x ≔ e]}
+[Associtivity ]  do {B; x ← do {C; p}; D; r} = do {B; C; x ← p; D; r}
+#+END_SRC
+
+Here, ~B, C, D~ range over sequences of commands and ~C[x ≔ e]~ means the sequence ~C~
+with all free occruences of ~x~ replaced by ~e~.
+
++ Associtivity gives us a nice way to ‘inline’ other calls.
++ The LeftIdentity law, read right-to-left, lets us “locally give a name” to the
+  possibly complex expression ~e~.
+
+  If ~pure~ forms a singleton collection, then LeftIdentity is a “one-point rule”:
+  We consider /all/ ~x ← pure e~, but there is only /one/ such ~x~, namely ~e~!
+  # - In list notation: ~[g x | x <- pure e] = [g e]~.
+
+In the applicative case, where the clauses are independent, we can prove, say,
+~RightIdentity~ using the identity law for applicatives ---which says essentially
+{{{newline}}}
+~do {x <- p; pure x} = p~--- then apply induction on the length of ~B~.
+
+:Hide:
+#+BEGIN_SRC haskell
+-- applicative laws
+[Homomorphism] do {x <- pure e; pure (f x)} = pure (f e)
+#+END_SRC
+:End:
+
+What axioms are needed for the monad case to prove the ~do~-notation laws?
+
+* Monad Laws
+  # ---“the programmable semicolon”*
+
+Here is the definition of the monad typeclass.
+#+BEGIN_SRC haskell :tangle del_4.hs
+class Applicative m => Monad (m :: * -> *) where
+  (>>=) :: m a -> (a -> m b) -> m b
+
+(<=<) :: Monad m => (b -> m c) -> (a -> m b) -> a -> m c
+f <=< g = join . fmap f . g
+#+END_SRC
+
+Where's ~join~!? Historically, monads entered Haskell first with interface ~(>>=),
+return~; later it was realised that ~return = pure~ and the relationship with
+applicative was cemented.
+
+‘Bind’ ~(>>=)~ is definable from ~join~ by ~ma >>= f = join (fmap f ma)~, and, for
+this reason, bind is known as “flat map” or “concat map” in particular
+instances. For instance, the second definition of ~do~-notation could be
+expressed:
+#+BEGIN_SRC haskell
+(2M′) do {x ← p; C; r} = p >>= q where q x = do {C; r}
+#+END_SRC
+Conversely, ~join ps = do {p ← ps; p} = ps >>= id~. Likewise, with (2M′), note how
+~(<*>)~ can be defined directly in-terms of ~(>>=)~
+{{{newline}}}
+---c.f., ~mf <*> mx = do {f ← mf;
+x ← mx; return (f x)}~.
+
+Since ~fmap f p = do {x ← p; return (f x)} = p >>= return . f~, in the past monad
+did not even have functor as a superclass ---c.f., [[http://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Monad.html#v:liftM][liftM]].
+
+:FlipBind:
+
+(=<<) :: Monad m => (a -> m b) -> m a -> m b
+    -- Defined in ‘GHC.Base’
+infixr 1 =<<
+
+:End:
+
+The properties of ~>>=, return~ that prove the desired ~do~-notation laws are:
+#+BEGIN_SRC haskell
+[LeftIdentity ] return a >>= f   ≡  f a
+[RightIdentity] m >>= return     ≡  m
+[Associtivity ] (m >>= f) >>= g  ≡  m >>= (\x -> f x >>= g)
+                i.e.,   (m  >>=  (\x -> f x))  >>=  g
+                       = m  >>=  (\x -> f x    >>=  g)
+#+END_SRC
+
+Equivalently, show the ‘fish’ ~(<=<)~ is associative with identity being ~pure~
+---c.f., monoids!
+
+It is pretty awesome that ~(>>=), return~ give us a functor, an applicative, and
+(dependent) do-notation! Why? Because bind does both the work of ~fmap~ and ~join~.
+Thus, ~pure, fmap, join~ suffice to characterise a monad.
+
+| /Join determines how a monad behaves!/ |
+
+The monad laws can be expressed in terms of ~join~ [[https://en.wikibooks.org/wiki/Haskell/Category_theory#The_monad_laws_and_their_importance][directly]]:
+#+BEGIN_SRC haskell
+[Associativity] join . fmap join = join . join
+{- The only two ways to get from “m (m (m α))” to “m α” are the same. -}
+
+[Identity Laws] join. fmap pure = join . pure = id
+{- Wrapping up “m α” gives an “m (m α)” which flattens to the original element. -}
+#+END_SRC
+#    # - The left-hand side will flatten the inner two layers into a new layer,
+#    # - then flatten this with the outermost layer. The right-hand side will
+#    # - flatten the outer two layers, then flatten this with the innermost
+#    # - layer.
+
+Then, notice that the (free) naturality of join is:
+#+BEGIN_SRC haskell
+join . fmap (fmap f) = fmap f . join  ∷  m (m α) → m β
+#+END_SRC
+
+# Cool.
+# Notice that ~fmap f p = do { x ← p; pure (f x) } = join $ fmap (pure . f) p~
+
+ Again, note that ~join~ doesn't merely flatten a monad value, but rather performs
+ the necessary logic that determines /how the monad behaves/.
+ # Indeed, ~join, pure, fmap~ suffice to characterise a monad.
+
+ E.g., suppose ~m α = ε → (ε, α)~ is the type of ~α~-values that can be configured
+ according to a fixed environment type ~ε~, along with the possibly updated
+ configuration ---i.e., functions ~ε → (ε, α)~. Then any ~a ∶ ε → (ε, ε → α)~ in ~m
+ (m α)~ can be considered an element of ~m α~ if we /propagate the environment
+ configuration/ through the outer layer to obtain a new configuration for the
+ inner layer: ~λ e → let (e′, a′) = a e in a′ e′~. The join dictates how a
+ configuration is /modified then passed along/: We have two actions, ~a~ and ~a′~, and
+ join has /sequenced/ them by pushing the environment through the first thereby
+ modifying it then pushing it through the second.
+
+* Monad Examples
+
+Let ~f₁, f₂~ be functors and let ~ε~ a type.
+
+| Applicative | ~m α~          | ~join :: m (m α) → m α~                   |
+|-------------+--------------+-----------------------------------------|
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]    | ~α~            | ~λ x → x~                                 |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]    | ~ε~            | ~λ x → x~  ---Shucks!                     |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/GHC-List.html][List]]        | ~[α]~          | ~λ xss → foldr (++) [] xss~               |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Either.html#t:Either][Either]]      | ~Either ε α~   | Exercise ^_^                            |
+|-------------+--------------+-----------------------------------------|
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Compose.html#t:Compose][Composition]] | ~f₁ (f₂ α)~    | [[https://stackoverflow.com/q/7040844/3550444][Nope! Not a monad!]]                      |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Product.html#t:Product][Product]]     | ~(f₁ α, f₂ α)~ | ~λ p → (fst <$> p, snd <$> p)~            |
+|-------------+--------------+-----------------------------------------|
+| [[http://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Writer-Lazy.html#g:2][Writer]]      | ~(ε, α)~       | ~λ (e, (e′, a)) → (e <> e′, a)~           |
+| [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Reader.html][Reader]]      | ~ε → α~        | ~λ ra → λ e → ra e e~                     |
+| [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-State-Lazy.html#g:2][State]]       | ~ε → (ε, α)~   | ~λ ra → λ e → let (e′, a) = ra e in a e′~ |
+#  #
+# | [[http://comonad.com/reader/2012/abstracting-with-applicatives/][Sum]]         | ~Either (f₁ α) (f₂ α)~ | Challenge: Assume ~η ∷ f₁ a → f₂ a~       |
+
+In writer, we need ~ε~ to be a monoid.
+
++ Notice how, in writer, join merges the outer context with the inner context:
+  /Sequential writes are mappended together!/
++ If ~pure~ forms ‘singleton containers’ then ~join~ flattens containers of containers
+  into a single container.
+
+Excluding the trivial monoid, the constant functor is /not/ a monad: It fails the
+monad identity laws for join. Similarly, ~f α = Maybe (α, α)~ is an applicative
+but /not/ a monad ---since there is no lawful definition of ~join~. Hence,
+applicatives are strictly more generally than monads.
+:Indeed:
+#+BEGIN_SRC haskell
+  id x = join $ fmap pure x
+≡ x = join $ mempty
+≡ x = mempty!
+#+END_SRC
+:End:
+
+:Hide:
+ #+BEGIN_SRC haskell
+-- Either
+join (Right (Right a)) = Right a
+join (Right (Left e))  = Left e
+join (Left e)          = Left e
+
+ -- Cont
+join f = \k -> f (\f' -> f' k)
+ #+END_SRC
+ :End:
+
+* COMMENT Hide - monad laws
+
+#+BEGIN_SRC haskell
+-- join . pure = id
+do {pure p} = p  -- ??
+
+-- join . fmap pure = id
+do {x <- p; pure x} = p -- cf RightIdentity!
+
+-- join . fmap join = join . join
+do {x ← p; do {C; r}} = do {x ← p; C; r} --?? cf Associtivity
+#+END_SRC
 
 * COMMENT Comparing Monad and Applicative
 
@@ -752,11 +1152,250 @@ intermediate results to decide what to do next.
 Applicatives sequence independent effects, whereas monads allow effects to
 depend on each other.
 
+* COMMENT Examples
+Then,
+
+
+
+#
+The Functor instance is straightforward for Sum, but the applicative instance is
+puzzling. What should "pure" do? It needs to inject into either the left or the
+right, so clearly we need some form of "bias" in the instance. What we really
+need is the capacity to "work in" one side of the sum until compelled to switch
+over to the other, at which point we're stuck there. If two functors, F and G
+are in a relationship such that we can always send f x -> g x in a way that
+"respects" fmap (that is to say, such that (fmap f . fToG == ftoG . fmap f) then
+we call this a natural transformation. The action that sends f to g is typically
+called "eta". (We actually want something slightly stronger called a "monoidal
+natural transformation" that respects not only the functorial action fmap but
+the applicative action <*>, but we can ignore that for now).
+#
+It turns out that a version of "Sum" with the initial transformation baked in now lives in transformers as Lift.
+#
+For ~Sum~, apply a function in ~f₁ (a → b) + f₂ (a → b)~ to the same tagged element
+in ~f₁ a + f₂ a~ provided we have a /coherent/ translation ~η : f₁ α → f₂ α~. E.g.,
+~Maybe α ≅ Identity α + Const ()~ with ~η = const ()~.
+#+BEGIN_SRC haskell
+ef <$> ea = ((λ f → (f +++ (ap f . η)) ea) ||| (λ g → (ap(g . η) +++ g) ea)) ef
+ap = (<*>)
+#+END_SRC
+# Axioms of monoidal natural transformations
+# Axiom 0:  fmap f . η = η . fmap f    -- naturality, free by parametericity
+# Axiom 1:  η . pure = pure            -- preserves pure
+# Axiom 3:  η (f <$> x) = η f <$> η x  -- homomorphism
+
++ ~Maybe~ for possibly failing computations.
+
+Maybe. If we view 'no value' as analogous to null, then this bind function is
+null propogation.
+
+* Running Example ---A Simple Arithmetic Language
+
+Let's start with a weak language:
+#+BEGIN_SRC haskell :tangle simple_terms.hs
+data Term = Int Int | Div Term Term deriving Show
+
+thirteen = Int 1729 `Div` (Int 133 `Div` Int 1)
+boom     = Int 1729 `Div` (Int 12  `Div` Int 0)
+
+eval₀ :: Term -> Int
+eval₀ (Int n) =  n
+eval₀ (n `Div` d) = let top    = eval₀ n
+                        bottom = eval₀ d
+                    in  top `div` bottom
+#+END_SRC
+
+How do we accomodate safe division by zero? Print to the user what's happening
+at each step of the calcuation? Have terms that access ‘global’ variables? Have
+terms that can store named expressions then access them later?
+
+We'll make such languages and their ~eval~'s will be nearly just as simple as this
+one (!) but accomodate these other issues.
+
+* [[http://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Maybe.html][Maybe]] ---Possibly Failing Computations
+Safe evaluator: No division errors.
+#+BEGIN_SRC haskell :tangle simple_terms.hs
+eval₁ :: Term -> Maybe Int
+eval₁ (Int n) = pure n
+eval₁ (n `Div` d) = do t <- eval₁ n
+                       b <- eval₁ d
+                       if b == 0 then Nothing else pure (t `div` b)
+#+END_SRC
+Exercise: Rewrite ~evalᵢ~ without ~do~-notation and you'll end-up with nested case
+analysis leading into a straicase of code that runs right off the page.
+
+- Applicative is enough for ~eval₁, eval₂, eval₃~, but ~eval₄~ needs ~Monad~.
+
+* [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Writer-Lazy.html#g:2][Writer]] ---Logging Information as we Compute
+
+Use a pair type ~W ε α~ to keep track of an environment ~ε~ and a value ~α~.
+#+BEGIN_SRC haskell :tangle simple_terms.hs
+data Writer ε α = W ε α deriving Show
+
+write :: ε -> Writer ε ()
+write e = W e ()
+
+instance Functor (Writer ε) where
+  fmap f (W e a) = W e (f a)
+#+END_SRC
+Aggregate, merge, environments using their monoidal operation.
+#+BEGIN_SRC haskell :tangle simple_terms.hs
+instance Monoid ε => Applicative (Writer ε) where
+  pure a = W mempty a
+  (W e f) <*> (W d a) = W (e <> d) (f a)
+
+instance Monoid ε => Monad (Writer ε) where
+  (>>=) = \ ma f -> join (pure f <*> ma)
+    where join (W e (W d a)) = W (e <> d) a
+#+END_SRC
+
+An evaluator that prints to the user what's going on.
+#+BEGIN_SRC haskell :tangle simple_terms.hs
+eval₂ :: Term -> Writer String Int
+eval₂ it@(Int n) = W ("\n Evaluating: " ++ show it) n
+eval₂ it@(n `Div` d) = do write $ "\n Evaluating: " ++ show it
+                          t <- eval₂ n
+                          b <- eval₂ d
+                          pure $ (t `div` b)
+
+-- Try this! With “boom”, we get to see up to the boint of the error ^_^
+-- let W e x = eval₂ thirteen in putStrLn e
+#+END_SRC
+
+* spacing break                                                      :ignore:
+#+latex: \vspace{-1em}
+* [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-Reader.html#g:2][Reader]] ---Accessing ‘Global, read-only, data’
+# Reader let's us simulate “global, read-only, data”.
+
+#+latex: \hspace{-1.5em}
+Use a function type ~ε → α~ to get ~α~-values that ‘reads’ from a configuration
+environment ε.
+#+BEGIN_SRC haskell :tangle terms_with_vars.hs
+data Reader ε α = R {run :: ε -> α}
+
+instance Functor (Reader ε) where
+  fmap f (R g) = R $ f . g
+
+instance Applicative (Reader ε) where
+  pure a = R $ const a
+  (R f) <*> (R g) = R $ \e -> f e (g e) {- “S” combinator -}
+
+instance Monad (Reader ε) where
+  ma >>= f = join (pure f <*> ma)
+    where join (R rf) = R $ \e -> run (rf e) e
+#+END_SRC
+
+A language with access to global variables; uninitialised variables are 0 by
+default.
+#+BEGIN_SRC haskell :tangle terms_with_vars.hs
+data Term = Int Int | Div Term Term | Var String deriving Show
+
+type GlobalVars = [(String, Int)]
+
+valuefrom :: String -> GlobalVars -> Int
+valuefrom x gvs = maybe 0 id $ lookup x gvs
+
+eval₃ :: Term -> Reader GlobalVars Int
+eval₃ (Int x) = pure x
+eval₃ (Var x) = R $ \e -> x `valuefrom` e
+eval₃ (n `Div` d) = do t <- eval₃ n
+                       b <- eval₃ d
+                       pure (t `div` b)
+
+state    = [("x", 1729), ("y", 133)] :: GlobalVars
+thirteen = Var "x" `Div` (Var "y" `Div` Int 1)
+-- run (eval₃ thirteen) state
+#+END_SRC
+
+* [[https://hackage.haskell.org/package/mtl-2.2.2/docs/Control-Monad-State-Lazy.html#g:2][State]] ---Read and write to local storage
+
+Let's combine writer and reader to get state: We can both read and write to data
+by using functions ~ε → (ε, α)~ that read from an environment ε and result in a
+new environment as well as a value.
+- ~IO α ≅ State TheRealWorld α~ ;-)
+#+BEGIN_SRC haskell :tangle terms_with_storage.hs
+data State ε α = S {run :: ε -> (ε, α)}
+
+push :: Monoid ε => ε -> State ε ()
+push d = S $ \e -> (d <> e, ())
+
+instance Functor (State ε) where
+  fmap f (S g) = S $ \ e -> let (e', a) = g e in (e', f a)
+
+instance Applicative (State ε) where
+  pure a = S $ \e -> (e, a)
+  (S sf) <*> (S g) = S $ \e -> let (e',  a) = g e
+                                   (e'', f) = sf e' in (e'', f a)
+
+instance Monad (State ε) where
+  ma >>= f = join (pure f <*> ma)
+    where join (S sf) = S $ \e -> let (e', S f) = sf e in f e'
+#+END_SRC
+
+A simple language with storage; a program's value is the value of its final store.
+:Repeated:
+#+BEGIN_SRC haskell :tangle terms_with_storage.hs
+type GlobalVars = [(String, Int)]
+
+valuefrom :: String -> GlobalVars -> Int
+valuefrom x gvs = maybe 0 id $ lookup x gvs
+#+END_SRC
+:End:
+
+#+BEGIN_SRC haskell :tangle terms_with_storage.hs
+data Expr = Let String Expr Expr | Var String | Int Int | Div Expr Expr
+           deriving Show
+
+eval₄ :: Expr -> State GlobalVars Int
+eval₄ (Var x) = S $ \e -> let r = x `valuefrom` e in ((x,r):e, r)
+eval₄ (Int x) = pure x
+eval₄ (Let x t body) = do n <- eval₄ t
+                          push [(x, n)] -- Applicative is NOT enough here!
+                          eval₄ body
+eval₄ (n `Div` d) = do t <- eval₄ n; b <- eval₄ d; pure (t `div` b)
+
+thirteen = Let "x" (Int 1729)
+             $ Let "y" (Int 133 `Div` Int 1)
+                $ Var "x" `Div` Var "y"
+
+-- run (eval₄ thirteen) []
+#+END_SRC
+
+Exercise: Add to the oringal =Term= type a constructor =Rndm [Term]=, where =Rndm
+[t₁, …, tₙ]= denotes non-deterministicly choosing one of the terms ~tᵢ~. Then write
+an evaluator that considers all possible branches of a computation:
+~eval₅ : Term → [Int]~.
+
+If we want to mixin any of the features for our evaluators, we need to use ‘monad
+transformers’ since monads do not compose in general.
+
+
+* spacing break                                                      :ignore:
+#+latex: \columnbreak
 * Reads
 
++ /Introduction to Functional Programming/ by Richard Bird
+  - Assuming no programming, this book end by showing how to write a theorem
+    prover powerful enough to prove many of laws scattered throughout the book.
+
++ [[http://homepages.inf.ed.ac.uk/wadler/papers/marktoberdorf/baastad.pdf][Monads for functional programming]] by Philip Wadler
+  - This covers the ~evalᵢ~ and more ^_^
+
++ [[https://docs.racket-lang.org/heresy/monad-do.html][Comprehending Monads]] by Philip Wadler
+
 + [[http://dev.stephendiehl.com/hask/][What I Wish I Knew When Learning Haskell]]
+
 + [[https://wiki.haskell.org/Typeclassopedia][Typeclassopedia]] ---/The essentials of each type class are introduced, with
    examples, commentary, and extensive references for further reading./
+
++ [[http://blog.sigfpe.com/2006/08/you-could-have-invented-monads-and.html][You Could Have Invented Monads! (And Maybe You Already Have.)]]
+
++ [[http://learnyouahaskell.com/chapters][Learn You a Haskell for Great Good]] ---An accessible read with many examples, and drawings
+
++ [[https://en.wikibooks.org/wiki/Haskell][The Haskell WikiBook]] ---Has four beginner's tracks and four advanced tracks
+
++ LINQ for [[http://tomasp.net/blog/idioms-in-linq.aspx/#csidiomsl][applicatives]] and [[https://livebook.manning.com/book/real-world-functional-programming/chapter-12/28][monads]].
+  - Monads ≈ SQL/Linq ≈ Comprehensions/Generators
 
  :TODO:
  http://homepages.inf.ed.ac.uk/wadler/topics/links.html#arrows-and-idioms
@@ -793,8 +1432,6 @@ Press ~C-c C-c~ on the following incantation to produce a single column portrait
 )
 #+END_SRC
 
-* spacing COMMENT break                                                      :ignore:
-#+latex: \columnbreak
 * COMMENT Basic Equational Support
 
 # Basic name-formula equational support.
