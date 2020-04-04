@@ -1,4 +1,4 @@
-# Created 2020-04-02 Thu 23:49
+# Created 2020-04-04 Sat 18:13
 #+OPTIONS: toc:nil d:nil
 #+OPTIONS: toc:nil d:nil
 #+TITLE: Haskell CheatSheet
@@ -98,7 +98,6 @@ system.
 #+latex_header: \newunicodechar{ }{\ensuremath{\;\;}}
 
 #+begin_quote
-- [[#extra-local-setup][Extra, Local, Setup]]
 - [[#hello-home][Hello, Home!]]
 - [[#pattern-matching][Pattern Matching]]
 - [[#local-bindings][Local Bindings]]
@@ -113,7 +112,7 @@ system.
   - [[#filter][Filter]]
   - [[#fold][Fold]]
 - [[#algebraic-data-types][Algebraic data types]]
-- [[#typeclasses-and-overloading][*Typeclasses and overloading*]]
+- [[#typeclasses-and-overloading][Typeclasses and overloading]]
 - [[#functor][Functor]]
   - [[#identity-axiom][Identity Axiom]]
   - [[#fusion-axiom][Fusion Axiom]]
@@ -133,10 +132,8 @@ system.
 - [[#running-example----a-simple-arithmetic-language][Running Example ---A Simple Arithmetic Language]]
 - [[#maybe----possibly-failing-computations][Maybe ---Possibly Failing Computations]]
 - [[#writer----logging-information-as-we-compute][Writer ---Logging Information as we Compute]]
-- [[#break][break]]
 - [[#reader----accessing-global-read-only-data][Reader ---Accessing ‘Global, read-only, data’]]
 - [[#state----read-and-write-to-local-storage][State ---Read and write to local storage]]
-- [[#break-1][break]]
 - [[#reads][Reads]]
 #+end_quote
 
@@ -462,7 +459,7 @@ right f = id +++ f
 The above ~(+++)~ can be found in ~Control.Arrow~ and is also known as ~either~ in the
 standard library.
 
-* *Typeclasses and overloading*
+* Typeclasses and overloading
 
 /Overloading/ is using the same name to designate operations “of the same nature”
 on values of different types.
@@ -815,7 +812,7 @@ an applicative expression.
 If ~do {x ← p; y ← qx; pure e}~ has ~qx~ being an expression *depending* on ~x~,
 then we could say this is an abbreviation for ~(λ x → (λ y → e) <$> qx) <$> p~
 but this is of type ~f (f β))~. Hence, to allow later computations to depend
-on earlier computations, we need a method ~join :: f (f α) → α~ with which
+on earlier computations, we need a method ~join :: f (f α) → f α~ with which
 we define  ~do {x ← p; y ← qx; pure e} ≈ join $ ~(λ x -> (λ y → e) <$> qx) <$> p~.
 
 Applicatives with a ~join~ are called monads and they give us a *“programmable
@@ -964,7 +961,7 @@ the necessary logic that determines /how the monad behaves/.
 
 E.g., suppose ~m α = ε → (ε, α)~ is the type of ~α~-values that can be configured
 according to a fixed environment type ~ε~, along with the possibly updated
-configuration ---i.e., functions ~ε → (ε, α)~. Then any ~a ∶ ε → (ε, ε → α)~ in ~m
+configuration ---i.e., functions ~ε → (ε, α)~. Then any ~a ∶ ε → (ε, ε → (ε, α))~ in ~m
  (m α)~ can be considered an element of ~m α~ if we /propagate the environment
 configuration/ through the outer layer to obtain a new configuration for the
 inner layer: ~λ e → let (e′, a′) = a e in a′ e′~. The join dictates how a
@@ -1170,7 +1167,6 @@ an evaluator that considers all possible branches of a computation:
 If we want to mixin any of the features for our evaluators, we need to use ‘monad
 transformers’ since monads do not compose in general.
 
-
 #+latex: \columnbreak
 * Reads
 
@@ -1193,6 +1189,12 @@ transformers’ since monads do not compose in general.
 - [[http://learnyouahaskell.com/chapters][Learn You a Haskell for Great Good]] ---An accessible read with many examples, and drawings
 
 - [[https://en.wikibooks.org/wiki/Haskell][The Haskell WikiBook]] ---Has four beginner's tracks and four advanced tracks
+
+- [[https://alhassy.github.io/CatsCheatSheet/CheatSheet.pdf][Category Theory Cheat Sheet]] ---The “theory of typed composition”:
+  Products, Sums, Functors, Natural Transformations ^_^
+
+- [[https://alhassy.github.io/AgdaCheatSheet/CheatSheet.pdf][Agda Cheat Sheet]] ---Agda is Haskell on steroids in that it you can invoke
+  Haskell code and write proofs for it.
 
 - LINQ for [[http://tomasp.net/blog/idioms-in-linq.aspx/#csidiomsl][applicatives]] and [[https://livebook.manning.com/book/real-world-functional-programming/chapter-12/28][monads]].
   - Monads ≈ SQL/Linq ≈ Comprehensions/Generators
