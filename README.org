@@ -1,4 +1,4 @@
-# Created 2020-04-04 Sat 18:13
+# Created 2020-04-04 Sat 22:32
 #+OPTIONS: toc:nil d:nil
 #+OPTIONS: toc:nil d:nil
 #+TITLE: Haskell CheatSheet
@@ -613,10 +613,10 @@ but unless executed, there is no ~α~-value.
 - Reading the functor axioms left-to-right, they can be seen as /optimisation laws/
   that make a program faster by reducing work.
 - The two laws together say /fmap distributes over composition/:
-  ~fmap (f₁ . f₂ . ⋯ . fₙ) = fmap f₁ . ⋯ . fmap fₙ~ for ~n ≥ 0~.
+  ~fmap (f₁ . f₂ . ⋯ . fₙ)  =  fmap f₁ . ⋯ . fmap fₙ~ for ~n ≥ 0~.
 
 *Naturality Theorems:* If ~p ∷ f a → g a~ for some /functors/ ~f~ and ~g~,
-then ~fmap f . p = p . fmap f~ for any /function/ ~f~.
+then ~fmap f . p  =  p . fmap f~ for any /function/ ~f~.
 
 Hence, any generic property ~p ∷ f α → ε~ is invariant over fmaps:
 ~p(fmap f xs) = p xs~. E.g., the length of a list does not change even when an
@@ -628,7 +628,7 @@ Let ~f₁, f₂~ be functors and ~ε~ be a given type.
 
 | Type Former                                                                                                 | ~f α~                  | ~f <$> x~                             |
 |-------------------------------------------------------------------------------------------------------------+------------------------+---------------------------------------|
-| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]  | ~α~                    | ~f <$> x =  x~                        |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]  | ~α~                    | ~f <$> x = f x~                       |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]       | ~ε~                    | ~f <$> x = x~                         |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/GHC-List.html][List]]                              | ~[α]~                  | ~f <$> [x₀, …, xₙ] = [f x₀, …, f xₙ]~ |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Either.html#t:Either][Either]]                | ~Either ε α~           | ~f <$> x = right f~                   |
@@ -704,9 +704,11 @@ considering all possible combinations: ~[(+), (*)] <*> pure 3 <*> [2, 4, 6] =
 Given a definition of apply, the definition of ~pure~ may be obtained
 by unfolding the identity axiom.
 
-Using these laws, we regain ~fmap~ thereby further cementing that applicatives
-model “collections that can be functionally applied”: ~f <$> x = pure f <*> x~.
-( Hence, every applicative is a functor whether we like it or not. )
+Using these laws, we regain the original ~fmap~ ---since ~fmap~'s are [[http://archive.fo/U8xIY][unique]] in
+Haskell--- thereby further cementing that applicatives model “collections that
+can be functionally applied”: ~f <$> x = pure f <*> x~. ( Hence, every applicative
+is a functor whether we like it or not. )
+- The identity applicative law is then just the identity law of functor: ~id <$> x = x~.
 - The homomorphism law now becomes: ~pure . f = fmap f . pure~.
 
   - This is the “naturality law” for ~pure~.

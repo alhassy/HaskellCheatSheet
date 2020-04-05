@@ -34,7 +34,7 @@
 #+LATEX_HEADER: \newunicodechar{∉}{\ensuremath{\not\in}}
 #+LATEX_HEADER: \newunicodechar{ }{\ensuremath{\;\;}}
 
-* Contents :TOCish:QUOTE:ignore:
+* COMMENT Contents :TOCish:QUOTE:ignore:
 #+BEGIN_QUOTE
 - [[#hello-home][Hello, Home!]]
 - [[#pattern-matching][Pattern Matching]]
@@ -574,10 +574,10 @@ foo g = foo (g . id) = fmap g . foo id = fmap g . id = fmap g
 + Reading the functor axioms left-to-right, they can be seen as /optimisation laws/
   that make a program faster by reducing work.
 + The two laws together say /fmap distributes over composition/: {{{newline}}}
-  ~fmap (f₁ . f₂ . ⋯ . fₙ) = fmap f₁ . ⋯ . fmap fₙ~ for ~n ≥ 0~.
+  ~fmap (f₁ . f₂ . ⋯ . fₙ)  =  fmap f₁ . ⋯ . fmap fₙ~ for ~n ≥ 0~.
 
 *Naturality Theorems:* If ~p ∷ f a → g a~ for some /functors/ ~f~ and ~g~, {{{newline}}}
-then ~fmap f . p = p . fmap f~ for any /function/ ~f~.
+then ~fmap f . p  =  p . fmap f~ for any /function/ ~f~.
 
 Hence, any generic property ~p ∷ f α → ε~ is invariant over fmaps:
 ~p(fmap f xs) = p xs~. E.g., the length of a list does not change even when an
@@ -590,7 +590,7 @@ Let ~f₁, f₂~ be functors and ~ε~ be a given type.
 
 | Type Former | ~f α~                  | ~f <$> x~                             |
 |-------------+----------------------+-------------------------------------|
-| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]    | ~α~                    | ~f <$> x =  x~                        |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]    | ~α~                    | ~f <$> x = f x~                       |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]    | ~ε~                    | ~f <$> x = x~                         |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/GHC-List.html][List]]        | ~[α]~                  | ~f <$> [x₀, …, xₙ] = [f x₀, …, f xₙ]~ |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Either.html#t:Either][Either]]      | ~Either ε α~           | ~f <$> x = right f~                   |
@@ -610,8 +610,11 @@ way to implement ~fmap~. In contrast, ~f α = (α → ε, α)~ /does/ have an im
 of ~fmap~, but it is not lawful.
 # It fails the identity axiom.
 
+
+#+latex: \vspace{-0.0em}
 * Applicative
   # ---Protecting against invalid input
+#+latex: \vspace{-0.5em}
 
 /Applicatives are collection-like types that can apply collections of functions
 to collections of elements./
@@ -672,9 +675,14 @@ by unfolding the identity axiom.
 # Given a definition of apply, the definition of ~pure~ is then unique.
 # Proof?
 
-Using these laws, we regain ~fmap~ thereby further cementing that applicatives
-model “collections that can be functionally applied”: ~f <$> x = pure f <*> x~.
-( Hence, every applicative is a functor whether we like it or not. )
+# Using these laws, we can define a lawful definition of ~fmap~
+# but lawful ~fmap~'s
+Using these laws, we regain the original ~fmap~ ---since ~fmap~'s are [[http://archive.fo/U8xIY][unique]] in
+Haskell--- thereby further cementing that applicatives model “collections that
+can be functionally applied”: ~f <$> x = pure f <*> x~. ( Hence, every applicative
+is a functor whether we like it or not. )
+- The identity applicative law is then just the identity law of functor.
+  # : ~id <$> x = x~.
 - The homomorphism law now becomes: ~pure . f = fmap f . pure~.
   # i.e., ~λ x → pure (f x) = λ x → fmap f (pure x)~.
   * This is the “naturality law” for ~pure~.
@@ -719,7 +727,7 @@ or ~(<&>)~ below ---c.f., ~sequenceA :: Applicative f ⇒ [f a] → f [a]~.
 (<&>) :: f a → f b → f (a, b)   {- Not a standard name! -}
 (<&>) = liftA2 (,)  -- i.e., p <&> q = (,) <$> p <*> q
 #+END_SRC
-This is a pairing operation with properties of ~(,)~ mirrored at the applicative level:
+  This is a pairing operation with properties of ~(,)~ mirrored at the applicative level:
 #+BEGIN_SRC haskell
 {- Pure Pairing -} pure x <&> pure y = pure (x, y)
 {- Naturality   -} (f &&& g) <$> (u <&> v) = (f <$> u) <&> (g <&> v)
@@ -1034,7 +1042,7 @@ The monad laws can be expressed in terms of ~join~ [[https://en.wikibooks.org/wi
 
 Then, notice that the (free) naturality of join is:
 #+BEGIN_SRC haskell
-join . fmap (fmap f) = fmap f . join  ∷  m (m α) → m β
+    join . fmap (fmap f) = fmap f . join  ∷  m (m α) → m β
 #+END_SRC
 
 # Cool.
@@ -1061,7 +1069,7 @@ Let ~f₁, f₂~ be functors and let ~ε~ a type.
 | Applicative | ~m α~          | ~join :: m (m α) → m α~                   |
 |-------------+--------------+-----------------------------------------|
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Functor-Identity.html#t:Identity][Identity]]    | ~α~            | ~λ x → x~                                 |
-| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]    | ~ε~            | ~λ x → x~  ---Shucks!                     |
+| [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Control-Applicative.html#t:Const][Constant]]    | ~ε~            | ~λ x → x~  ---Shucks! Not a monad!        |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/GHC-List.html][List]]        | ~[α]~          | ~λ xss → foldr (++) [] xss~               |
 | [[https://hackage.haskell.org/package/base-4.12.0.0/docs/Data-Either.html#t:Either][Either]]      | ~Either ε α~   | Exercise ^_^                            |
 |-------------+--------------+-----------------------------------------|
@@ -1151,43 +1159,6 @@ intermediate results to decide what to do next.
 
 Applicatives sequence independent effects, whereas monads allow effects to
 depend on each other.
-
-* COMMENT Examples
-Then,
-
-
-
-#
-The Functor instance is straightforward for Sum, but the applicative instance is
-puzzling. What should "pure" do? It needs to inject into either the left or the
-right, so clearly we need some form of "bias" in the instance. What we really
-need is the capacity to "work in" one side of the sum until compelled to switch
-over to the other, at which point we're stuck there. If two functors, F and G
-are in a relationship such that we can always send f x -> g x in a way that
-"respects" fmap (that is to say, such that (fmap f . fToG == ftoG . fmap f) then
-we call this a natural transformation. The action that sends f to g is typically
-called "eta". (We actually want something slightly stronger called a "monoidal
-natural transformation" that respects not only the functorial action fmap but
-the applicative action <*>, but we can ignore that for now).
-#
-It turns out that a version of "Sum" with the initial transformation baked in now lives in transformers as Lift.
-#
-For ~Sum~, apply a function in ~f₁ (a → b) + f₂ (a → b)~ to the same tagged element
-in ~f₁ a + f₂ a~ provided we have a /coherent/ translation ~η : f₁ α → f₂ α~. E.g.,
-~Maybe α ≅ Identity α + Const ()~ with ~η = const ()~.
-#+BEGIN_SRC haskell
-ef <$> ea = ((λ f → (f +++ (ap f . η)) ea) ||| (λ g → (ap(g . η) +++ g) ea)) ef
-ap = (<*>)
-#+END_SRC
-# Axioms of monoidal natural transformations
-# Axiom 0:  fmap f . η = η . fmap f    -- naturality, free by parametericity
-# Axiom 1:  η . pure = pure            -- preserves pure
-# Axiom 3:  η (f <$> x) = η f <$> η x  -- homomorphism
-
-+ ~Maybe~ for possibly failing computations.
-
-Maybe. If we view 'no value' as analogous to null, then this bind function is
-null propogation.
 
 * Running Example ---A Simple Arithmetic Language
 
